@@ -31,8 +31,8 @@ if st.button("⚡ Calcular Viaje", use_container_width=True):
         with st.spinner("Calculando distancia óptima..."):
             try:
                 # Buscamos las coordenadas reales en VT
-                loc_origen = geolocator.geocode(origen_input + city_filter)
-                loc_destino = geolocator.geocode(destino_input + city_filter)
+                loc_origen = geolocator.geocode(origen_input + ciudad_filtro)
+                loc_destino = geolocator.geocode(destino_input + ciudad_filtro)
                 
                 if loc_origen and loc_destino:
                     # Calculamos los KM de distancia
