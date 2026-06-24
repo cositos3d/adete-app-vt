@@ -14,10 +14,11 @@ st.set_page_config(page_title="CadeteApp Pro", page_icon="🛵", layout="centere
 ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
 ARCHIVO_HISTORIAL = "historial_viajes.csv"
 
-# --- ESTILOS CSS RE-DISEÑADOS (Animación corregida de frente) ---
+# --- ESTILOS CSS RE-DISEÑADOS (Tipografía amigable y vehículos) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght=400;600&display=swap');
+    /* Importamos una tipografía más amigable y moderna desde Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
     
     body, .main, h1, p, .stButton {
         font-family: 'Fredoka', sans-serif !important;
@@ -27,12 +28,11 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: 600; font-size: 16px; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* CORRECCIÓN: Animación para que vayan HACIA ADELANTE (de derecha a izquierda) */
-    @keyframes cruzar-derecha-a-izquierda {
-        0% { transform: translateX(350px); }
-        100% { transform: translateX(-150px); }
+    /* Animación 1: La Moto y la Bici cruzando al inicio */
+    @keyframes cruzar-pantalla {
+        0% { transform: translateX(-150px); }
+        100% { transform: translateX(350px); }
     }
-    
     .welcome-box { 
         text-align: center; 
         padding: 40px; 
@@ -53,11 +53,11 @@ st.markdown("""
     }
     .moto-bici-saludo { 
         font-size: 55px; 
-        animation: cruzar-derecha-a-izquierda 3.2s infinite linear; 
+        animation: cruzar-pantalla 3.2s infinite linear; 
         width: fit-content;
     }
     
-    /* Animación de cálculo (esta va de izquierda a derecha porque tiene el humo a la derecha '🛵💨') */
+    /* Animación 2: La motito del cálculo */
     @keyframes move-moto {
         0% { transform: translateX(-100px); }
         100% { transform: translateX(300px); }
@@ -89,7 +89,7 @@ if not st.session_state.bienvenida_mostrada:
                 </div>
             </div>
         """, unsafe_allow_html=True)
-        time.sleep(3.2)
+        time.sleep(3.2) # Tiempo justo para que pasen los vehículos
     st.session_state.bienvenida_mostrada = True
     st.rerun()
 
@@ -119,7 +119,7 @@ with tab1:
     origen = st.text_input("📍 Origen", value="Belgrano 170")
     destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
     
-    geolocator = Nominatim(user_agent="cadete_vt_pro_v8")
+    geolocator = Nominatim(user_agent="cadete_vt_pro_v7")
     ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
     if st.button("⚡ Calcular Tarifa"):
@@ -196,4 +196,32 @@ with tab2:
             total_ganado_hoy = df_hoy["Monto"].sum()
             total_viajes_hoy = len(df_hoy)
             c_h1, c_h2 = st.columns(2)
-            c_h1.metric("Ganancia de Hoy", f"${total_ganado_hoy
+            c_h1.metric("Ganancia de Hoy", f"${total_ganado_hoy:,.0f}")
+            c_h2.metric("Viajes de Hoy", total_viajes_hoy)
+        else:
+            st.info("Todavía no registraste viajes en el día de hoy.")
+        
+        st.divider()
+        st.markdown("### 🗄️ Todos los viajes registrados")
+        st.dataframe(df.iloc[::-1], use_container_width=True)
+        
+        if st.button("🗑️ Borrar Todo el Historial"):
+            borrar_historial_permanente()
+            st.success("Historial eliminado.")
+            time.sleep(1)
+            st.rerun()
+    else:
+        st.info("No hay ningún viaje registrado en el historial permanente.")
+
+# --- PESTAÑA 3: CONFIGURAR TARIFAS ---
+with tab3:
+    st.subheader("Configuración de Precios")
+    st.write("Modificá los valores y se aplicarán al instante en el calculador.")
+    
+    base = st.number_input("Valor Base ($)", value=st.session_state.tarifas["base"], step=100.0)
+    dist_min = st.number_input("Distancia Mínima incluida (KM)", value=st.session_state.tarifas["km_min"], step=0.1)
+    km_ex = st.number_input("Precio por KM extra ($)", value=st.session_state.tarifas["km_extra"], step=50.0)
+    
+    if st.button("💾 Guardar Nuevas Tarifas"):
+        st.session_state.tarifas = {"base": base, "km_min": dist_min, "km_extra": km_ex}
+        st.success("Tarifas de sesión actualizadas correctamente.")
