@@ -1,77 +1,159 @@
 import streamlit as st
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
+import time
+import pandas as pd
+from datetime import datetime
 
-# Configuración estilo celular
-st.set_page_config(page_title="Cadetería Venado Tuerto", page_icon="🛵", layout="centered")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="CadeteApp Pro VT", page_icon="🛵", layout="centered")
 
-st.title("🛵 CadeteApp VT")
-st.caption("Calculador automático de tarifas para Venado Tuerto")
+# Estilo personalizado para mejorar la visual en móviles
+st.markdown("""
+    <style>
+    .main { background-color: #f0f2f6; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; font-weight: bold; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .css-10trblm { font-size: 20px; color: #1E88E5; }
+    /* Animación de la motito */
+    @keyframes move-moto {
+        0% { transform: translateX(-100px); }
+        100% { transform: translateX(300px); }
+    }
+    .moto-animation { font-size: 50px; animation: move-moto 2s infinite linear; width: 100%; text-align: center; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- CONFIGURACIÓN DE TARIFAS ---
-VALOR_BASE = 3000.0
-DISTANCIA_BASE_KM = 1.5
-PRECIO_POR_KM_EXTRA = 1000.0  # $100 cada 0.1km = $1000 por 1km
+# --- INICIALIZACIÓN DE MEMORIA (Session State) ---
+if 'tarifas' not in st.session_state:
+    st.session_state.tarifas = {"base": 3000.0, "km_min": 1.5, "km_extra": 1000.0}
 
-# Forzamos un "User Agent" único para que el mapa no nos bloquee
-geolocator = Nominatim(user_agent="cadete_app_venado_tuerto_v2_99")
+if 'historial' not in st.session_state:
+    st.session_state.historial = []
 
-st.markdown("### 📍 Direcciones del Viaje")
+if 'viaje_actual' not in st.session_state:
+    st.session_state.viaje_actual = None
 
-origen_input = st.text_input("1. Dirección de SALIDA (Origen)", value="San Martin y Belgrano")
-destino_input = st.text_input("2. Dirección de ENTREGA (Destino)", placeholder="Ej: Castelli 1200")
+# --- TÍTULO PRINCIPAL ---
+st.title("🛵 CadeteApp Pro")
+st.caption("Gestión inteligente de envíos para Venado Tuerto")
 
-ciudad_filtro = ", Venado Tuerto, Santa Fe, Argentina"
+# --- NAVEGACIÓN POR PESTAÑAS ---
+tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
 
-if st.button("⚡ Calcular Viaje", use_container_width=True):
-    if origen_input and destino_input:
-        with st.spinner("Buscando direcciones..."):
-            try:
-                # Buscamos coordenadas en Venado Tuerto
-                loc_origen = geolocator.geocode(origen_input + ciudad_filtro, timeout=10)
-                loc_destino = geolocator.geocode(destino_input + ciudad_filtro, timeout=10)
-                
-                if loc_origen and loc_destino:
-                    coord_origen = (loc_origen.latitude, loc_origen.longitude)
-                    coord_destino = (loc_destino.latitude, loc_destino.longitude)
-                    
-                    # Calculamos distancia con curva estimada por calles (x1.25)
-                    distancia_linea_recta = geodesic(coord_origen, coord_destino).kilometers
-                    distancia_estimada = round(distancia_linea_recta * 1.25, 2)
-                    
-                    # Si por error da 0, le ponemos un mínimo
-                    if distancia_estimada == 0:
-                        distancia_estimada = 0.5
-                    
-                    # --- LÓGICA DE TARIFAS ---
-                    if distancia_estimada <= DISTANCIA_BASE_KM:
-                        costo_final = VALOR_BASE
-                    else:
-                        km_excedentes = distancia_estimada - DISTANCIA_BASE_KM
-                        costo_final = VALOR_BASE + (km_excedentes * PRECIO_POR_KM_EXTRA)
-                    
-                    costo_final = round(costo_final, 0)
+# --- PESTAÑA 1: CALCULADOR ---
+with tab1:
+    origen = st.text_input("📍 Origen", value="San Martin y Belgrano")
+    destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
+    
+    geolocator = Nominatim(user_agent="cadete_vt_pro_v3")
+    ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
-                    # --- MOSTRAR RESULTADOS ---
-                    st.success("¡Cálculo exitoso!")
-                    
-                    col1, col2 = st.columns(2)
-                    col1.metric(label="Distancia Estimada", value=f"{distancia_estimada} KM")
-                    col2.metric(label="PRECIO A COBRAR", value=f"${costo_final:,.0f}")
-                    
-                    st.divider()
-                    
-                    # Botón para abrir Google Maps en el celular
-                    maps_url = f"https://www.google.com/maps/dir/?api=1&origin={origen_input.replace(' ', '+')}+Venado+Tuerto&destination={destino_input.replace(' ', '+')}+Venado+Tuerto&travelmode=driving"
-                    st.link_button("🚀 Abrir ruta en Google Maps", maps_url, use_container_width=True)
-                    
-                else:
-                    st.error("❌ No encontramos las calles en Venado Tuerto. Revisá si están bien escritas (ej: 'Castelli 1200' o 'Mitre y Belgrano').")
+    if st.button("⚡ Calcular Tarifa"):
+        if origen and destino:
+            # Espacio para la animación
+            moto_placeholder = st.empty()
+            moto_placeholder.markdown('<div class="moto-animation">🛵💨</div>', unsafe_allow_html=True)
             
+            try:
+                # Simulación de tiempo de carga para ver la animación
+                time.sleep(1.5)
+                
+                loc_o = geolocator.geocode(origen + ciudad, timeout=10)
+                loc_d = geolocator.geocode(destino + ciudad, timeout=10)
+                
+                moto_placeholder.empty() # Quitamos la animación
+
+                if loc_o and loc_d:
+                    dist = round(geodesic((loc_o.latitude, loc_o.longitude), (loc_d.latitude, loc_d.longitude)).kilometers * 1.25, 2)
+                    if dist == 0: dist = 0.5
+                    
+                    # Cálculo basado en la pestaña de tarifas
+                    t = st.session_state.tarifas
+                    if dist <= t["km_min"]:
+                        precio = t["base"]
+                    else:
+                        precio = t["base"] + ((dist - t["km_min"]) * t["km_extra"])
+                    
+                    st.session_state.viaje_actual = {
+                        "origen": origen, "destino": destino, "distancia": dist, "precio": round(precio, 0)
+                    }
+                    
+                    st.success(f"Cálculo listo")
+                    c1, c2 = st.columns(2)
+                    c1.metric("Distancia", f"{dist} KM")
+                    c2.metric("Precio", f"${round(precio, 0):,.0f}")
+                else:
+                    st.error("No se encontraron las direcciones.")
             except Exception as e:
-                # PLAN B: Si el mapa de fondo falla, le damos un botón directo a Google Maps para no trabar el trabajo
-                st.warning("⚠️ El buscador automático está saturado, pero podés ver la ruta y cobrar de forma manual:")
-                maps_url_fallback = f"https://www.google.com/maps/dir/?api=1&origin={origen_input.replace(' ', '+')}+Venado+Tuerto&destination={destino_input.replace(' ', '+')}+Venado+Tuerto&travelmode=driving"
-                st.link_button("🗺️ Abrir en Google Maps para ver Distancia", maps_url_fallback, use_container_width=True)
+                st.error("Error en la conexión. Reintente.")
+
+    # --- FLUJO DE VIAJE ---
+    if st.session_state.viaje_actual:
+        st.divider()
+        v = st.session_state.viaje_actual
+        
+        col_m1, col_m2 = st.columns(2)
+        
+        # Botón Google Maps
+        maps_url = f"https://www.google.com/maps/dir/?api=1&origin={v['origen'].replace(' ', '+')}+Venado+Tuerto&destination={v['destino'].replace(' ', '+')}+Venado+Tuerto&travelmode=driving"
+        col_m1.link_button("🗺️ Ver Mapa", maps_url)
+        
+        # Botón Mercado Pago (Link genérico de la App)
+        mp_url = "https://www.mercadopago.com.ar/home" # Aquí podrías poner tu propio link de cobro
+        col_m2.link_button("💳 Cobrar con MP", mp_url)
+        
+        if st.button("✅ Finalizar y Guardar Viaje", type="primary"):
+            nuevo_registro = {
+                "Fecha": datetime.now().strftime("%H:%M:%S"),
+                "Ruta": f"{v['origen']} -> {v['destino']}",
+                "KM": v['distancia'],
+                "Monto": v['precio']
+            }
+            st.session_state.historial.append(nuevo_registro)
+            st.session_state.viaje_actual = None
+            st.balloons()
+            st.info("Viaje guardado en el historial.")
+            time.sleep(2)
+            st.rerun()
+
+# --- PESTAÑA 2: HISTORIAL ---
+with tab2:
+    st.subheader("Resumen del Día")
+    if st.session_state.historial:
+        df = pd.DataFrame(st.session_state.historial)
+        
+        total_ganado = df["Monto"].sum()
+        total_viajes = len(df)
+        
+        c_h1, c_h2 = st.columns(2)
+        c_h1.metric("Total Ganado", f"${total_ganado:,.0f}")
+        c_h2.metric("Viajes Hechos", total_viajes)
+        
+        st.divider()
+        st.write("Detalle de viajes:")
+        st.dataframe(df, use_container_width=True)
+        
+        if st.button("🗑️ Borrar Historial"):
+            st.session_state.historial = []
+            st.rerun()
     else:
-        st.warning("Por favor, completa ambos campos.")
+        st.info("Todavía no hay viajes registrados hoy.")
+
+# --- PESTAÑA 3: CONFIGURAR TARIFAS ---
+with tab3:
+    st.subheader("Configuración de Precios")
+    st.write("Modificá los valores y se aplicarán al instante en el calculador.")
+    
+    # Inputs vinculados directamente a la memoria de la app
+    base = st.number_input("Valor Base ($)", value=st.session_state.tarifas["base"], step=100.0)
+    dist_min = st.number_input("Distancia Mínima incluida (KM)", value=st.session_state.tarifas["km_min"], step=0.1)
+    km_ex = st.number_input("Precio por KM extra ($)", value=st.session_state.tarifas["km_extra"], step=50.0)
+    
+    if st.button("💾 Guardar Nuevas Tarifas"):
+        st.session_state.tarifas = {
+            "base": base,
+            "km_min": dist_min,
+            "km_extra": km_ex
+        }
+        st.success("Tarifas actualizadas correctamente.")
