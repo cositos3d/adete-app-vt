@@ -14,10 +14,9 @@ st.set_page_config(page_title="CadeteApp Pro", page_icon="🛵", layout="centere
 ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
 ARCHIVO_HISTORIAL = "historial_viajes.csv"
 
-# --- ESTILOS CSS RE-DISEÑADOS (Tipografía amigable y vehículos) ---
+# --- ESTILOS CSS PERFECCIONADOS ---
 st.markdown("""
     <style>
-    /* Importamos una tipografía más amigable y moderna desde Google Fonts */
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
     
     body, .main, h1, p, .stButton {
@@ -28,36 +27,40 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: 600; font-size: 16px; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* Animación 1: La Moto y la Bici cruzando al inicio */
-    @keyframes cruzar-pantalla {
-        0% { transform: translateX(-150px); }
-        100% { transform: translateX(350px); }
+    /* Animación de la pantalla de bienvenida (Todo pasa de largo) */
+    @keyframes cruzar-todo {
+        0% { transform: translateX(-250px); }
+        100% { transform: translateX(400px); }
     }
+    
     .welcome-box { 
         text-align: center; 
         padding: 40px; 
         background: white; 
         border-radius: 24px; 
         box-shadow: 0 6px 20px rgba(0,0,0,0.08); 
+        overflow: hidden;
     }
+    
+    .animacion-contenedor {
+        width: 100%;
+        animation: cruzar-todo 3.2s infinite linear;
+    }
+    
     .titulo-bienvenida {
         color: #1E88E5; 
         font-size: 36px; 
         font-weight: 600;
-        margin-bottom: 5px;
-    }
-    .vehiculos-box {
-        width: 100%;
-        overflow: hidden;
-        margin-top: 20px;
-    }
-    .moto-bici-saludo { 
-        font-size: 55px; 
-        animation: cruzar-pantalla 3.2s infinite linear; 
-        width: fit-content;
+        white-space: nowrap;
     }
     
-    /* Animación 2: La motito del cálculo */
+    .moto-bici-saludo { 
+        font-size: 55px; 
+        margin-top: 15px;
+        white-space: nowrap;
+    }
+    
+    /* Animación de la motito del cálculo */
     @keyframes move-moto {
         0% { transform: translateX(-100px); }
         100% { transform: translateX(300px); }
@@ -82,14 +85,14 @@ if not st.session_state.bienvenida_mostrada:
     with welcome_container:
         st.markdown("""
             <div class="welcome-box">
-                <div class="titulo-bienvenida">CadeteApp Pro</div>
-                <p style='color: #666; font-size: 18px; font-weight: 400;'>¡Buenas rutas para hoy! 🌍</p>
-                <div class="vehiculos-box">
-                    <div class="moto-bici-saludo">🛵..🚲💨</div>
+                <div class="animacion-contenedor">
+                    <div class="titulo-bienvenida">Bienvenido a CadeteApp Pro</div>
+                    <div class="moto-bici-saludo">🚲..🛵💨</div>
                 </div>
+                <p style='color: #666; font-size: 16px; font-weight: 400; margin-top: 20px;'>¡Buenas rutas para hoy! 🌍</p>
             </div>
         """, unsafe_allow_html=True)
-        time.sleep(3.2) # Tiempo justo para que pasen los vehículos
+        time.sleep(3.2)
     st.session_state.bienvenida_mostrada = True
     st.rerun()
 
@@ -116,10 +119,11 @@ tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ T
 
 # --- PESTAÑA 1: CALCULADOR ---
 with tab1:
-    origen = st.text_input("📍 Origen", value="Belgrano 170")
+    # Corrección: Ahora ambos campos usan placeholders (gris clarito) sin texto pre-tipeado
+    origen = st.text_input("📍 Origen", placeholder="Ej: Belgrano 170")
     destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
     
-    geolocator = Nominatim(user_agent="cadete_vt_pro_v7")
+    geolocator = Nominatim(user_agent="cadete_vt_pro_v8")
     ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
     if st.button("⚡ Calcular Tarifa"):
