@@ -7,8 +7,8 @@ import os
 from datetime import datetime
 import pytz
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="CadeteApp Pro VT", page_icon="🛵", layout="centered")
+# --- CONFIGURACIÓN DE PÁGINA (Nombre e Icono para el navegador/móvil) ---
+st.set_page_config(page_title="CadeteApp Pro", page_icon="🛵", layout="centered")
 
 # Configurar Zona Horaria de Argentina
 ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
@@ -16,7 +16,6 @@ ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
 # Archivo local para guardar los viajes de forma permanente
 ARCHIVO_HISTORIAL = "historial_viajes.csv"
 
-# Funciones para leer y escribir el historial permanente
 def cargar_historial_permanente():
     if os.path.exists(ARCHIVO_HISTORIAL):
         try:
@@ -42,7 +41,6 @@ st.markdown("""
     .main { background-color: #f0f2f6; }
     .stButton>button { width: 100%; border-radius: 10px; height: 3em; font-weight: bold; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    /* Animación de la motito */
     @keyframes move-moto {
         0% { transform: translateX(-100px); }
         100% { transform: translateX(300px); }
@@ -51,7 +49,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- INICIALIZACIÓN DE MEMORIA DE SESIÓN ---
 if 'tarifas' not in st.session_state:
     st.session_state.tarifas = {"base": 3000.0, "km_min": 1.5, "km_extra": 1000.0}
 
@@ -60,17 +57,18 @@ if 'viaje_actual' not in st.session_state:
 
 # --- TÍTULO PRINCIPAL ---
 st.title("🛵 CadeteApp Pro")
-st.caption("Gestión inteligente de envíos para Venado Tuerto")
+st.caption("Gestión inteligente de envíos urbanos")
 
 # --- NAVEGACIÓN POR PESTAÑAS ---
 tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
 
 # --- PESTAÑA 1: CALCULADOR ---
 with tab1:
-    origen = st.text_input("📍 Origen", value="San Martin y Belgrano")
+    # Corrección: Sugerencia de calle corregida a Belgrano 170
+    origen = st.text_input("📍 Origen", value="Belgrano 170")
     destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
     
-    geolocator = Nominatim(user_agent="cadete_vt_pro_v4")
+    geolocator = Nominatim(user_agent="cadete_vt_pro_v5")
     ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
     if st.button("⚡ Calcular Tarifa"):
@@ -119,9 +117,7 @@ with tab1:
         col_m2.link_button("💳 Cobrar con MP", mp_url)
         
         if st.button("✅ Finalizar y Guardar Viaje", type="primary"):
-            # Obtener fecha y hora REAL de Argentina
             ahora_arg = datetime.now(ARG_TZ)
-            
             nuevo_registro = {
                 "Fecha": ahora_arg.strftime("%d/%m/%Y"),
                 "Hora": ahora_arg.strftime("%H:%M:%S"),
@@ -129,7 +125,6 @@ with tab1:
                 "KM": v['distancia'],
                 "Monto": v['precio']
             }
-            # Guardado definitivo en el archivo del servidor
             guardar_viaje_permanente(nuevo_registro)
             st.session_state.viaje_actual = None
             st.balloons()
@@ -140,24 +135,17 @@ with tab1:
 # --- PESTAÑA 2: HISTORIAL PERMANENTE ---
 with tab2:
     st.subheader("Historial Acumulado")
-    
-    # Cargamos lo que está guardado en el archivo permanente
     historial_lista = cargar_historial_permanente()
     
     if historial_lista:
         df = pd.DataFrame(historial_lista)
-        
-        # Obtener la fecha de hoy en Argentina para el resumen diario
         hoy_arg = datetime.now(ARG_TZ).strftime("%d/%m/%Y")
-        
-        # Filtrar solo los viajes que se hicieron HOY
         df_hoy = df[df["Fecha"] == hoy_arg]
         
         st.markdown(f"### 📅 Resumen de Hoy ({hoy_arg})")
         if not df_hoy.empty:
             total_ganado_hoy = df_hoy["Monto"].sum()
             total_viajes_hoy = len(df_hoy)
-            
             c_h1, c_h2 = st.columns(2)
             c_h1.metric("Ganancia de Hoy", f"${total_ganado_hoy:,.0f}")
             c_h2.metric("Viajes de Hoy", total_viajes_hoy)
@@ -165,10 +153,7 @@ with tab2:
             st.info("Todavía no registraste viajes en el día de hoy.")
         
         st.divider()
-        
-        # Mostrar TODO el historial guardado cronológicamente
         st.markdown("### 🗄️ Todos los viajes registrados")
-        # Invertimos el orden para que el último viaje aparezca arriba de todo
         st.dataframe(df.iloc[::-1], use_container_width=True)
         
         if st.button("🗑️ Borrar Todo el Historial"):
