@@ -12,12 +12,11 @@ st.set_page_config(page_title="CadeteApp Pro", page_icon="🛵", layout="centere
 
 # Configurar Zona Horaria de Argentina
 ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
-ARCHIVO_HISTORIAL = "historial_viajes.csv"
 
 # --- TRUCO CLAVE: Forzar idioma Español para evitar el cartel de traducción ---
 st.markdown("<html lang='es'></html>", unsafe_allow_html=True)
 
-# --- ESTILOS CSS PERFECCIONADOS ---
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
@@ -30,7 +29,6 @@ st.markdown("""
     .stButton>button { width: 100%; border-radius: 12px; height: 3em; font-weight: 600; font-size: 16px; }
     .stMetric { background-color: #ffffff; padding: 15px; border-radius: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* ANIMACIÓN CORREGIDA: Arranca a la derecha (100%) y viaja hacia la izquierda (-100%) */
     @keyframes avanzar-hacia-izquierda {
         0% { transform: translateX(120%); }
         100% { transform: translateX(-120%); }
@@ -67,7 +65,6 @@ st.markdown("""
         display: block;
     }
     
-    /* La motito que calcula también viaja hacia la izquierda de frente */
     .moto-animation { 
         font-size: 50px; 
         display: inline-block;
@@ -105,6 +102,29 @@ if not st.session_state.bienvenida_mostrada:
     st.session_state.bienvenida_mostrada = True
     st.rerun()
 
+# --- CONTROL DE USUARIOS EXCLUSIVOS (TU GRUPO DE CONFIANZA) ---
+st.sidebar.markdown("### 👤 Mi Perfil")
+
+# Lista de tus 5 conocidos autorizados + opción Invitado para arrancar limpios
+lista_cadetes = [
+    "Seleccionar...", 
+    "Sergio01", 
+    "SaraCarolina02", 
+    "LucasAlexis03", 
+    "Tomyp04", 
+    "Leocalderon05"
+]
+
+cadete_seleccionado = st.sidebar.selectbox("Elegí tu usuario para laburar:", lista_cadetes)
+
+# Definimos las rutas de los archivos en base al nombre exacto elegido
+if cadete_seleccionado != "Seleccionar...":
+    ARCHIVO_HISTORIAL = f"historial_{cadete_seleccionado}.csv"
+    nombre_mostrar = cadete_seleccionado
+else:
+    ARCHIVO_HISTORIAL = "historial_invitado.csv"
+    nombre_mostrar = "Invitado"
+
 # --- CARGA DE FUNCIONES PERMANENTES ---
 def cargar_historial_permanente():
     if os.path.exists(ARCHIVO_HISTORIAL):
@@ -124,6 +144,12 @@ def borrar_historial_permanente():
 st.title("🛵 CadeteApp Pro")
 st.caption("Gestión inteligente de envíos urbanos")
 
+# Mensaje de advertencia amigable si todavía no se eligieron en la lista
+if cadete_seleccionado == "Seleccionar...":
+    st.warning("⚠️ Recordá seleccionar tu nombre en la barra lateral izquierda para guardar los viajes en tu cuenta personal.")
+else:
+    st.success(f"⚡ Sesión activa como: **{nombre_mostrar}**")
+
 tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
 
 # --- PESTAÑA 1: CALCULADOR ---
@@ -131,7 +157,7 @@ with tab1:
     origen = st.text_input("📍 Origen", placeholder="Ej: Belgrano 170")
     destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
     
-    geolocator = Nominatim(user_agent="cadete_vt_pro_v10")
+    geolocator = Nominatim(user_agent="cadete_vt_pro_v12")
     ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
     if st.button("⚡ Calcular Tarifa"):
@@ -189,13 +215,15 @@ with tab1:
             guardar_viaje_permanente(nuevo_registro)
             st.session_state.viaje_actual = None
             st.balloons()
-            st.info("Viaje guardado permanentemente.")
+            st.info(f"Viaje guardado en el historial de {nombre_mostrar}.")
             time.sleep(1.5)
             st.rerun()
 
 # --- PESTAÑA 2: HISTORIAL PERMANENTE ---
 with tab2:
     st.subheader("Historial Acumulado")
+    st.caption(f"Mostrando los datos de: **{nombre_mostrar}**")
+    
     historial_lista = cargar_historial_permanente()
     
     if historial_lista:
@@ -214,16 +242,16 @@ with tab2:
             st.info("Todavía no registraste viajes en el día de hoy.")
         
         st.divider()
-        st.markdown("### 🗄️ Todos los viajes registrados")
+        st.markdown(f"### 🗄️ Todos tus viajes ({nombre_mostrar})")
         st.dataframe(df.iloc[::-1], use_container_width=True)
         
-        if st.button("🗑️ Borrar Todo el Historial"):
+        if st.button("🗑️ Borrar este Historial"):
             borrar_historial_permanente()
-            st.success("Historial eliminado.")
+            st.success(f"Historial de {nombre_mostrar} eliminado.")
             time.sleep(1)
             st.rerun()
     else:
-        st.info("No hay ningún viaje registrado en el historial permanente.")
+        st.info(f"No hay ningún viaje registrado para {nombre_mostrar} todavía.")
 
 # --- PESTAÑA 3: CONFIGURAR TARIFAS ---
 with tab3:
@@ -236,4 +264,4 @@ with tab3:
     
     if st.button("💾 Guardar Nuevas Tarifas"):
         st.session_state.tarifas = {"base": base, "km_min": dist_min, "km_extra": km_ex}
-        st.success("Tarifas de sesión actualizadas correctamente.")
+        st.success("Tarifas de sesión actualizada correctamente.")
