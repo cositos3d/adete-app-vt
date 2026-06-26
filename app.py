@@ -75,9 +75,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- INICIALIZACIÓN DE MEMORIA DE SESIÓN ---
-if 'tarifas' not in st.session_state:
-    st.session_state.tarifas = {"base": 3000.0, "km_min": 1.5, "km_extra": 1000.0}
+# --- VALORES POR DEFECTO GENERALES ---
+TARIFAS_DEFECTO = {"base": 3000.0, "km_min": 1.5, "km_extra": 1000.0}
 
 if 'viaje_actual' not in st.session_state:
     st.session_state.viaje_actual = None
@@ -102,166 +101,194 @@ if not st.session_state.bienvenida_mostrada:
     st.session_state.bienvenida_mostrada = True
     st.rerun()
 
-# --- CONTROL DE USUARIOS EXCLUSIVOS (TU GRUPO DE CONFIANZA) ---
-st.sidebar.markdown("### 👤 Mi Perfil")
+# --- CONTROL DE ACCESO EXCLUSIVO ---
+st.sidebar.markdown("### 👤 Acceso Cadetes")
 
-# Lista de tus 5 conocidos autorizados + opción Invitado para arrancar limpios
-lista_cadetes = [
-    "Seleccionar...", 
-    "Sergio01", 
-    "SaraCarolina02", 
-    "LucasAlexis03", 
-    "Tomyp04", 
-    "Leocalderon05"
-]
+CADETES_AUTORIZADOS = ["Seleccionar...", "Sergio01", "SaraCarolina02", "LucasAlexis03", "Tomyp04", "Leocalderon05"]
 
-cadete_seleccionado = st.sidebar.selectbox("Elegí tu usuario para laburar:", lista_cadetes)
+cadete_seleccionado = st.sidebar.selectbox(
+    "Seleccioná tu usuario de prueba:",
+    options=CADETES_AUTORIZADOS
+)
 
-# Definimos las rutas de los archivos en base al nombre exacto elegido
+# Definir nombres de archivos dinámicos según el usuario activo
 if cadete_seleccionado != "Seleccionar...":
-    ARCHIVO_HISTORIAL = f"historial_{cadete_seleccionado}.csv"
-    nombre_mostrar = cadete_seleccionado
+    usuario_clean = cadete_seleccionado.lower()
+    ARCHIVO_HISTORIAL = f"historial_{usuario_clean}.csv"
+    ARCHIVO_TARIFAS = f"tarifas_{usuario_clean}.csv"
 else:
-    ARCHIVO_HISTORIAL = "historial_invitado.csv"
-    nombre_mostrar = "Invitado"
+    ARCHIVO_HISTORIAL = None
+    ARCHIVO_TARIFAS = None
 
-# --- CARGA DE FUNCIONES PERMANENTES ---
+# --- FUNCIONES DE PERSISTENCIA DE TARIFAS ---
+def cargar_tarifas_usuario():
+    if ARCHIVO_TARIFAS and os.path.exists(ARCHIVO_TARIFAS):
+        try:
+            df = pd.read_csv(ARCHIVO_TARIFAS)
+            if not df.empty:
+                return {
+                    "base": float(df.iloc[0]["base"]),
+                    "km_min": float(df.iloc[0]["km_min"]),
+                    "km_extra": float(df.iloc[0]["km_extra"])
+                }
+        except:
+            return TARIFAS_DEFECTO
+    return TARIFAS_DEFECTO
+
+def guardar_tarifas_usuario(nuevas_tarifas):
+    if ARCHIVO_TARIFAS:
+        df = pd.DataFrame([nuevas_tarifas])
+        df.to_csv(ARCHIVO_TARIFAS, index=False)
+
+# Cargar las tarifas del usuario en la memoria de la sesión actual
+if cadete_seleccionado != "Seleccionar...":
+    if 'tarifas' not in st.session_state or st.session_state.get('usuario_actual') != cadete_seleccionado:
+        st.session_state.tarifas = cargar_tarifas_usuario()
+        st.session_state.usuario_actual = cadete_seleccionado
+else:
+    st.session_state.tarifas = TARIFAS_DEFECTO
+
+# --- CARGA DE FUNCIONES DE HISTORIAL ---
 def cargar_historial_permanente():
-    if os.path.exists(ARCHIVO_HISTORIAL):
+    if ARCHIVO_HISTORIAL and os.path.exists(ARCHIVO_HISTORIAL):
         try: return pd.read_csv(ARCHIVO_HISTORIAL).to_dict(orient="records")
         except: return []
     return []
 
 def guardar_viaje_permanente(nuevo_viaje):
-    df_nuevo = pd.DataFrame([nuevo_viaje])
-    if not os.path.exists(ARCHIVO_HISTORIAL): df_nuevo.to_csv(ARCHIVO_HISTORIAL, index=False)
-    else: df_nuevo.to_csv(ARCHIVO_HISTORIAL, mode='a', header=False, index=False)
+    if ARCHIVO_HISTORIAL:
+        df_nuevo = pd.DataFrame([nuevo_viaje])
+        if not os.path.exists(ARCHIVO_HISTORIAL): df_nuevo.to_csv(ARCHIVO_HISTORIAL, index=False)
+        else: df_nuevo.to_csv(ARCHIVO_HISTORIAL, mode='a', header=False, index=False)
 
 def borrar_historial_permanente():
-    if os.path.exists(ARCHIVO_HISTORIAL): os.remove(ARCHIVO_HISTORIAL)
+    if ARCHIVO_HISTORIAL and os.path.exists(ARCHIVO_HISTORIAL): os.remove(ARCHIVO_HISTORIAL)
 
 # --- CONTENIDO PRINCIPAL DE LA APP ---
 st.title("🛵 CadeteApp Pro")
 st.caption("Gestión inteligente de envíos urbanos")
 
-# Mensaje de advertencia amigable si todavía no se eligieron en la lista
 if cadete_seleccionado == "Seleccionar...":
-    st.warning("⚠️ Recordá seleccionar tu nombre en la barra lateral izquierda para guardar los viajes en tu cuenta personal.")
+    st.info("👋 ¡Hola! Para empezar a cotizar y registrar tus viajes de hoy, seleccioná tu código de usuario en el menú de la izquierda.")
 else:
-    st.success(f"⚡ Sesión activa como: **{nombre_mostrar}**")
-
-tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
-
-# --- PESTAÑA 1: CALCULADOR ---
-with tab1:
-    origen = st.text_input("📍 Origen", placeholder="Ej: Belgrano 170")
-    destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
+    st.sidebar.success(f"Sesión activa: {cadete_seleccionado}")
     
-    geolocator = Nominatim(user_agent="cadete_vt_pro_v12")
-    ciudad = ", Venado Tuerto, Santa Fe, Argentina"
+    tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
 
-    if st.button("⚡ Calcular Tarifa"):
-        if origen and destino:
-            moto_placeholder = st.empty()
-            moto_placeholder.markdown('<div class="moto-animation">🛵💨</div>', unsafe_allow_html=True)
+    # --- PESTAÑA 1: CALCULADOR ---
+    with tab1:
+        origen = st.text_input("📍 Origen", placeholder="Ej: Belgrano 170")
+        destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
+        
+        geolocator = Nominatim(user_agent="cadete_vt_pro_v13")
+        ciudad = ", Venado Tuerto, Santa Fe, Argentina"
+
+        if st.button("⚡ Calcular Tarifa"):
+            if origen and destino:
+                moto_placeholder = st.empty()
+                moto_placeholder.markdown('<div class="moto-animation">🛵💨</div>', unsafe_allow_html=True)
+                
+                try:
+                    time.sleep(1.5)
+                    loc_o = geolocator.geocode(origen + ciudad, timeout=10)
+                    loc_d = geolocator.geocode(destino + ciudad, timeout=10)
+                    moto_placeholder.empty()
+
+                    if loc_o and loc_d:
+                        dist = round(geodesic((loc_o.latitude, loc_o.longitude), (loc_d.latitude, loc_d.longitude)).kilometers * 1.25, 2)
+                        if dist == 0: dist = 0.5
+                        
+                        t = st.session_state.tarifas
+                        if dist <= t["km_min"]: precio = t["base"]
+                        else: precio = t["base"] + ((dist - t["km_min"]) * t["km_extra"])
+                        
+                        st.session_state.viaje_actual = {
+                            "origen": origen, "destino": destino, "distancia": dist, "precio": round(precio, 0)
+                        }
+                        
+                        st.success(f"Cálculo listo")
+                        c1, c2 = st.columns(2)
+                        c1.metric("Distancia", f"{dist} KM")
+                        c2.metric("Precio", f"${round(precio, 0):,.0f}")
+                    else:
+                        st.error("No se encontraron las direcciones.")
+                except Exception as e:
+                    st.error("Error en la conexión. Reintente.")
+
+        if st.session_state.viaje_actual:
+            st.divider()
+            v = st.session_state.viaje_actual
+            col_m1, col_m2 = st.columns(2)
             
-            try:
+            maps_url = f"https://www.google.com/maps/dir/?api=1&origin={v['origen'].replace(' ', '+')}+Venado+Tuerto&destination={v['destino'].replace(' ', '+')}+Venado+Tuerto&travelmode=driving"
+            col_m1.link_button("🗺️ Ver Mapa", maps_url)
+            
+            mp_url = "https://www.mercadopago.com.ar/home"
+            col_m2.link_button("💳 Cobrar con MP", mp_url)
+            
+            if st.button("✅ Finalizar y Guardar Viaje", type="primary"):
+                ahora_arg = datetime.now(ARG_TZ)
+                nuevo_registro = {
+                    "Fecha": ahora_arg.strftime("%d/%m/%Y"),
+                    "Hora": ahora_arg.strftime("%H:%M:%S"),
+                    "Ruta": f"{v['origen']} -> {v['destino']}",
+                    "KM": v['distancia'],
+                    "Monto": v['precio']
+                }
+                guardar_viaje_permanente(nuevo_registro)
+                st.session_state.viaje_actual = None
+                st.balloons()
+                st.info("Viaje guardado en tu historial.")
                 time.sleep(1.5)
-                loc_o = geolocator.geocode(origen + ciudad, timeout=10)
-                loc_d = geolocator.geocode(destino + ciudad, timeout=10)
-                moto_placeholder.empty()
+                st.rerun()
 
-                if loc_o and loc_d:
-                    dist = round(geodesic((loc_o.latitude, loc_o.longitude), (loc_d.latitude, loc_d.longitude)).kilometers * 1.25, 2)
-                    if dist == 0: dist = 0.5
-                    
-                    t = st.session_state.tarifas
-                    if dist <= t["km_min"]: precio = t["base"]
-                    else: precio = t["base"] + ((dist - t["km_min"]) * t["km_extra"])
-                    
-                    st.session_state.viaje_actual = {
-                        "origen": origen, "destino": destino, "distancia": dist, "precio": round(precio, 0)
-                    }
-                    
-                    st.success(f"Cálculo listo")
-                    c1, c2 = st.columns(2)
-                    c1.metric("Distancia", f"{dist} KM")
-                    c2.metric("Precio", f"${round(precio, 0):,.0f}")
-                else:
-                    st.error("No se encontraron las direcciones.")
-            except Exception as e:
-                st.error("Error en la conexión. Reintente.")
-
-    if st.session_state.viaje_actual:
-        st.divider()
-        v = st.session_state.viaje_actual
-        col_m1, col_m2 = st.columns(2)
+    # --- PESTAÑA 2: HISTORIAL PERMANENTE ---
+    with tab2:
+        st.subheader("Historial Acumulado")
+        st.caption(f"Historial personal de: **{cadete_seleccionado}**")
         
-        maps_url = f"https://www.google.com/maps/dir/?api=1&origin={v['origen'].replace(' ', '+')}+Venado+Tuerto&destination={v['destino'].replace(' ', '+')}+Venado+Tuerto&travelmode=driving"
-        col_m1.link_button("🗺️ Ver Mapa", maps_url)
+        historial_lista = cargar_historial_permanente()
         
-        mp_url = "https://www.mercadopago.com.ar/home"
-        col_m2.link_button("💳 Cobrar con MP", mp_url)
-        
-        if st.button("✅ Finalizar y Guardar Viaje", type="primary"):
-            ahora_arg = datetime.now(ARG_TZ)
-            nuevo_registro = {
-                "Fecha": ahora_arg.strftime("%d/%m/%Y"),
-                "Hora": ahora_arg.strftime("%H:%M:%S"),
-                "Ruta": f"{v['origen']} -> {v['destino']}",
-                "KM": v['distancia'],
-                "Monto": v['precio']
-            }
-            guardar_viaje_permanente(nuevo_registro)
-            st.session_state.viaje_actual = None
-            st.balloons()
-            st.info(f"Viaje guardado en el historial de {nombre_mostrar}.")
-            time.sleep(1.5)
-            st.rerun()
-
-# --- PESTAÑA 2: HISTORIAL PERMANENTE ---
-with tab2:
-    st.subheader("Historial Acumulado")
-    st.caption(f"Mostrando los datos de: **{nombre_mostrar}**")
-    
-    historial_lista = cargar_historial_permanente()
-    
-    if historial_lista:
-        df = pd.DataFrame(historial_lista)
-        hoy_arg = datetime.now(ARG_TZ).strftime("%d/%m/%Y")
-        df_hoy = df[df["Fecha"] == hoy_arg]
-        
-        st.markdown(f"### 📅 Resumen de Hoy ({hoy_arg})")
-        if not df_hoy.empty:
-            total_ganado_hoy = df_hoy["Monto"].sum()
-            total_viajes_hoy = len(df_hoy)
-            c_h1, c_h2 = st.columns(2)
-            c_h1.metric("Ganancia de Hoy", f"${total_ganado_hoy:,.0f}")
-            c_h2.metric("Viajes de Hoy", total_viajes_hoy)
+        if historial_lista:
+            df = pd.DataFrame(historial_lista)
+            hoy_arg = datetime.now(ARG_TZ).strftime("%d/%m/%Y")
+            df_hoy = df[df["Fecha"] == hoy_arg]
+            
+            st.markdown(f"### 📅 Resumen de Hoy ({hoy_arg})")
+            if not df_hoy.empty:
+                total_ganado_hoy = df_hoy["Monto"].sum()
+                total_viajes_hoy = len(df_hoy)
+                c_h1, c_h2 = st.columns(2)
+                c_h1.metric("Ganancia de Hoy", f"${total_ganado_hoy:,.0f}")
+                c_h2.metric("Viajes de Hoy", total_viajes_hoy)
+            else:
+                st.info("Todavía no registraste viajes en el día de hoy.")
+            
+            st.divider()
+            st.markdown("### 🗄️ Todos tus viajes registrados")
+            st.dataframe(df.iloc[::-1], use_container_width=True)
+            
+            if st.button("🗑️ Borrar mi Historial"):
+                borrar_historial_permanente()
+                st.success("Tu historial ha sido eliminado.")
+                time.sleep(1)
+                st.rerun()
         else:
-            st.info("Todavía no registraste viajes en el día de hoy.")
+            st.info("No hay ningún viaje registrado en este historial personal.")
+
+    # --- PESTAÑA 3: CONFIGURAR TARIFAS ---
+    with tab3:
+        st.subheader("Configuración de Precios")
+        st.write("Modificá tus valores personales. Se guardarán para tus próximos inicios.")
         
-        st.divider()
-        st.markdown(f"### 🗄️ Todos tus viajes ({nombre_mostrar})")
-        st.dataframe(df.iloc[::-1], use_container_width=True)
+        base = st.number_input("Valor Base ($)", value=st.session_state.tarifas["base"], step=100.0)
+        dist_min = st.number_input("Distancia Mínima incluida (KM)", value=st.session_state.tarifas["km_min"], step=0.1)
+        km_ex = st.number_input("Precio por KM extra ($)", value=st.session_state.tarifas["km_extra"], step=50.0)
         
-        if st.button("🗑️ Borrar este Historial"):
-            borrar_historial_permanente()
-            st.success(f"Historial de {nombre_mostrar} eliminado.")
+        if st.button("💾 Guardar mis Tarifas Permanentes"):
+            nuevas_t = {"base": base, "km_min": dist_min, "km_extra": km_ex}
+            st.session_state.tarifas = nuevas_t
+            guardar_tarifas_usuario(nuevas_t)
+            st.success("¡Tus tarifas personales se guardaron de forma permanente!")
             time.sleep(1)
             st.rerun()
-    else:
-        st.info(f"No hay ningún viaje registrado para {nombre_mostrar} todavía.")
-
-# --- PESTAÑA 3: CONFIGURAR TARIFAS ---
-with tab3:
-    st.subheader("Configuración de Precios")
-    st.write("Modificá los valores y se aplicarán al instante en el calculador.")
-    
-    base = st.number_input("Valor Base ($)", value=st.session_state.tarifas["base"], step=100.0)
-    dist_min = st.number_input("Distancia Mínima incluida (KM)", value=st.session_state.tarifas["km_min"], step=0.1)
-    km_ex = st.number_input("Precio por KM extra ($)", value=st.session_state.tarifas["km_extra"], step=50.0)
-    
-    if st.button("💾 Guardar Nuevas Tarifas"):
-        st.session_state.tarifas = {"base": base, "km_min": dist_min, "km_extra": km_ex}
-        st.success("Tarifas de sesión actualizada correctamente.")
