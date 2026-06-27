@@ -1,5 +1,5 @@
 import streamlit as st
-from geopy.geocoders import Nominatim
+from geopy.geocoders import ArcGIS
 from geopy.distance import geodesic
 import time
 import pandas as pd
@@ -13,7 +13,7 @@ st.set_page_config(page_title="CadeteApp Pro", page_icon="🛵", layout="centere
 # Configurar Zona Horaria de Argentina
 ARG_TZ = pytz.timezone('America/Argentina/Buenos_Aires')
 
-# --- TRUCO CLAVE: Forzar idioma Español para evitar el cartel de traducción ---
+# --- TRUCO CLAVE: Forzar idioma Español ---
 st.markdown("<html lang='es'></html>", unsafe_allow_html=True)
 
 # --- ESTILOS CSS ---
@@ -171,59 +171,49 @@ if cadete_seleccionado == "Seleccionar...":
 else:
     st.sidebar.success(f"Sesión activa: {cadete_seleccionado}")
     
-    tab1, tab2, tab3 = st.tabs(["... Calculador", " Mi Historial", " Tarifas"])
+    tab1, tab2, tab3 = st.tabs(["🏍️ Calculador", "📊 Mi Historial", "⚙️ Tarifas"])
 
     # --- PESTAÑA 1: CALCULADOR ---
     with tab1:
-        origen = st.text_input(" Origen", placeholder="Ej: Belgrano 170")
-        destino = st.text_input(" Destino", placeholder="Ej: Castelli 1200")
+        origen = st.text_input("📍 Origen", placeholder="Ej: Belgrano 170")
+        destino = st.text_input("🏁 Destino", placeholder="Ej: Castelli 1200")
         
-        # Cambiamos el nombre del agente para refrescar la conexión con el servidor
-        geolocator = Nominatim(user_agent="cadete_vt_reintentos_v14")
+        # Cambiamos al motor de mapas de ArcGIS (Mucho más rápido y sin bloqueos corporativos)
+        geolocator = ArcGIS(timeout=10)
         ciudad = ", Venado Tuerto, Santa Fe, Argentina"
 
-        if st.button(" Calcular Tarifa"):
+        if st.button("⚡ Calcular Tarifa"):
             if origen and destino:
                 moto_placeholder = st.empty()
                 moto_placeholder.markdown('<div class="moto-animation">🛵💨</div>', unsafe_allow_html=True)
                 
-                loc_o = None
-                loc_d = None
-                
-                # --- SISTEMA INTELIGENTE DE REINTENTOS (MÁXIMO 3 INTENTOS) ---
-                for intento in range(3):
-                    try:
-                        time.sleep(1.0) # Pausa estratégica para no saturar
-                        if not loc_o:
-                            loc_o = geolocator.geocode(origen + ciudad, timeout=8)
-                        if not loc_d:
-                            loc_d = geolocator.geocode(destino + ciudad, timeout=8)
-                        
-                        if loc_o and loc_d:
-                            break # Si encontró ambos, sale del rulo de reintentos
-                    except Exception:
-                        time.sleep(1.5) # Espera un cachito más si falló la conexión
-                
-                moto_placeholder.empty()
+                try:
+                    time.sleep(0.5)
+                    loc_o = geolocator.geocode(origen + ciudad)
+                    loc_d = geolocator.geocode(destino + ciudad)
+                    moto_placeholder.empty()
 
-                if loc_o and loc_d:
-                    dist = round(geodesic((loc_o.latitude, loc_o.longitude), (loc_d.latitude, loc_d.longitude)).kilometers * 1.25, 2)
-                    if dist == 0: dist = 0.5
-                    
-                    t = st.session_state.tarifas
-                    if dist <= t["km_min"]: precio = t["base"]
-                    else: precio = t["base"] + ((dist - t["km_min"]) * t["km_extra"])
-                    
-                    st.session_state.viaje_actual = {
-                        "origen": origen, "destino": destino, "distancia": dist, "precio": round(precio, 0)
-                    }
-                    
-                    st.success(f"Cálculo listo")
-                    c1, c2 = st.columns(2)
-                    c1.metric("Distancia", f"{dist} KM")
-                    c2.metric("Precio", f"${round(precio, 0):,.0f}")
-                else:
-                    st.error("No se pudieron verificar las direcciones. Por favor, revisá que estén bien escritas o volvé a intentar en unos segundos.")
+                    if loc_o and loc_d:
+                        dist = round(geodesic((loc_o.latitude, loc_o.longitude), (loc_d.latitude, loc_d.longitude)).kilometers * 1.25, 2)
+                        if dist == 0: dist = 0.5
+                        
+                        t = st.session_state.tarifas
+                        if dist <= t["km_min"]: precio = t["base"]
+                        else: precio = t["base"] + ((dist - t["km_min"]) * t["km_extra"])
+                        
+                        st.session_state.viaje_actual = {
+                            "origen": origen, "destino": destino, "distancia": dist, "precio": round(precio, 0)
+                        }
+                        
+                        st.success(f"Cálculo listo")
+                        c1, c2 = st.columns(2)
+                        c1.metric("Distancia", f"{dist} KM")
+                        c2.metric("Precio", f"${round(precio, 0):,.0f}")
+                    else:
+                        st.error("No se encontraron las direcciones en el mapa. Probá agregando la altura exacta.")
+                except Exception as e:
+                    moto_placeholder.empty()
+                    st.error("El servidor de mapas tarda en responder. Esperá 2 segundos y volvé a tocar el botón.")
 
         if st.session_state.viaje_actual:
             st.divider()
